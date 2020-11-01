@@ -22,9 +22,6 @@ lib64/
 parts/
 sdist/
 var/
-*.egg-info/
-.installed.cfg
-*.egg
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
@@ -53,9 +50,6 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *,cover
-.hypothesis/
-*.cover
-*.py,cover
 .hypothesis/
 .pytest_cache/
 
