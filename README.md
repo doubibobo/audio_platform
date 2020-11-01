@@ -29,25 +29,6 @@ python flask-dropzonejs.py
 
 接著用你的瀏覽器瀏覽 [http://127.0.0.1:5000/](http://127.0.0.1:5000/)
 
-## 執行畫面
-[http://127.0.0.1:5000/](http://127.0.0.1:5000/) 為首頁 ，首頁畫面很簡單
-![alt tag](http://i.imgur.com/lyHdk5g.jpg)
-<br>
-可拖曳想要上傳的音樂檔(mp3)以及圖片檔(.jpg .png .gif .jpeg)
-<br>
-![alt tag](http://i.imgur.com/A0ZH1hB.jpg)
-檔案上傳完畢
-<br>
-![alt tag](http://i.imgur.com/IRwxx1a.jpg)
-接著可以重新整理網頁(F5)，剛剛的資料會顯示在網頁上
-![alt tag](http://i.imgur.com/oXv1ilB.jpg)
-上傳的檔案會被保存在以下路徑
-<b>flask-dropzone-wavesurfer\static\uploads </b>
-<br><br>
-音樂也是可以播放的哦，點播放的小圖示即可。
-<br>
-![alt tag](http://i.imgur.com/Rg1o0Jr.jpg)
-
 ## External JS
 * [Dropzone.js](http://www.dropzonejs.com/) 
 * [WaveSurfer.js](https://wavesurfer-js.org/) 
