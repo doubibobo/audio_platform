@@ -28,8 +28,10 @@ div.desc {
 
 /* Space out content a bit */
 body {
-    padding-top: 20px;
-    padding-bottom: 20px;
+    /* padding-top: 20px; */
+    /* padding-bottom: 20px; */
+    padding-top: 0px;
+    padding-bottom: 0px;
 }
 
 /* Everything but the jumbotron gets side spacing for mobile first views */
@@ -63,7 +65,8 @@ body {
 /* Customize container */
 @media (min-width: 1024px) {
     .container {
-        max-width: 900px;
+        /* max-width: 900px; */
+        max-width: 100%;
     }
 }
 
@@ -78,6 +81,7 @@ body {
 
 .marketing p+h4 {
     margin-top: 28px;
+    /* margin-top: 0px; */
 }
 
 /* Responsive: Portrait tablets and up */

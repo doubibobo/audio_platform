@@ -76,7 +76,7 @@ function startre() {
         function (stream) {
             recordVideo = RecordRTC(
                 stream, {
-                    type: 'audio'
+                    type: 'audio',
                 }
             );
             recordVideo.startRecording();
@@ -90,7 +90,7 @@ function startre() {
 function stopre() {
     recordVideo.stopRecording(function () {
         flag = true;
-        mp3name = getTime() + '.wav';
+        mp3name = getTime() + '.webm';
         var formdata = new FormData(); // form 表单 {key:value}
         formdata.append("audio", recordVideo.getBlob()); // form input type="file"
         formdata.append("name", servername);
@@ -119,14 +119,20 @@ function startremeeting() {
     startre()
     // 记录语音的段数
     count = 0
-    timer = setInterval(posttempdata, 3000)
+    timer = setInterval(posttempdata, 10000)
     console.log("1234567")
 }
+
+// TODO 这里应该采取缓冲区的做法，判断当前缓冲区里面的文件
+// TODO 是否包含转折片段
+// TODO 如果包含转折片段，则需进行定位
+// TODO 将转折之前的片段发送到后端服务器中
+// TODO 转折之后的判断再从开始放起
 
 function posttempdata() {
     recordVideo.stopRecording(function () {
         flag = true;
-        mp3name = getTime() + '_' + count + '.wav';
+        mp3name = getTime() + '_' + count + '.webm';
         count++;
 
         // 填充并设置表单

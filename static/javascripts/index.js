@@ -74,6 +74,9 @@ function initAndLoadSpectrogram(parent, waveform, wavetimeline, wavespectrogram,
     })();
     // 前序操作已经保证：实时录音已上传到/temp目录下，而录音文件上传到其它目录下
     // 由于会议室记录系统不涉及语音文件上传，故先不考虑flag为false时的处理情况
+
+    mp3name = mp3name.split('.')[0] + '.wav'
+
     if (flag) {
         wavesurfer.load('static/uploads/temp/' + mp3name);
     } else {

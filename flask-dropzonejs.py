@@ -14,7 +14,7 @@ UPLOAD_FOLDER = os.path.join(APP_ROOT, UPLOAD_PATH)
 TEMP_FOLDER = os.path.join(UPLOAD_FOLDER, 'temp')
 
 # server url
-asrUrl = 'http://127.0.0.1:9009/asr'
+asrUrl = 'http://127.0.0.1:9010/asr'
 serUrl = 'http://127.0.0.1:9006/ser'
 srUrl = 'http://127.0.0.1:9008/sr'
 enrollUrl = 'http://127.0.0.1:9008/enroll'
@@ -34,6 +34,28 @@ def delfile(path):
             except:
                 delfile(fileName)
                 os.rmdir(fileName)
+
+
+def webm_to_wav(webm_path, wav_path, sampling_rate, channel):
+    """
+    webm 转 wav
+    :param webm_path: 输入 webm 路劲
+    :param wav_path: 输出 wav 路径
+    :param sampling_rate: 采样率
+    :param channel: 通道数
+    :return: wav文件
+    """
+    # 如果存在wav_path文件，先删除。
+    if os.path.exists(wav_path):  # 如果文件存在
+        # 删除文件，可使用以下两种方法。
+        os.remove(wav_path)
+    start_time = time.time()
+    # 终端命令
+    command = "ffmpeg -loglevel quiet -i {} -ac {} -ar {} {}".format(webm_path, channel, sampling_rate, wav_path)
+    # print('命令是：',command)
+    # 执行终端命令
+    os.system(command)
+    print("文件格式转化时间" + str(time.time() - start_time))
 
 
 @app.route('/')
@@ -60,6 +82,7 @@ def index():
     all_mp3_files3.sort()
     all_mp3_files4.sort()
     return render_template('index.html', **locals())
+
 
 @app.route('/voiceprint')
 def voiceprint():
@@ -96,6 +119,7 @@ def meeting():
     else: 
         print("error method to access this interface! please check it.")
 
+
 # @app.route('/psr', methods=['POST'])
 # def psr():
     # # 后端接收到请求后，首先提取通过接口/recieve_data存储的文件数据
@@ -121,6 +145,7 @@ def meeting():
     #     "sr": sr_result.json(),
     #     "asr": asr_result.json()
     # })
+
 
 @app.route('/asr', methods=['GET', 'POST'])
 def asr():
@@ -272,9 +297,25 @@ def receive_audio():
     servername = request.form["name"]
     print(filename)
     print(servername)
+
     if file:
         upload_path = '{}/{}'.format(UPLOAD_FOLDER+'/temp', filename)
         file.save(upload_path)
+
+    # 这部分需要做格式转换，将pcm格式转化为wav格式
+    # import wave
+    # with open(upload_path, 'rb') as pcmfile:
+    #     pcmdata = pcmfile.read()
+    # with wave.open(upload_path + '.wav', 'wb') as wavfile:
+    #     wavfile.setparams((1, 2, 16000, 0, 'NONE', 'NONE'))
+    #     wavfile.writeframes(pcmdata)
+    webm_path = upload_path
+    wav_path = upload_path.split('.')[0] + '.wav'
+    print("webm_path is " + webm_path)
+    print("wav_path is " + wav_path)
+    sampling_rate = 16000
+    channel = 1
+    webm_to_wav(webm_path, wav_path, sampling_rate, channel)
     return 'ok'
 
 @app.route('/enroll', methods=['GET', 'POST'])
@@ -307,6 +348,86 @@ def changeServer():
     enrollUrl = urlData.get('enrollUrl')
     sedUrl = urlData.get('sedUrl')
     return 'OK'
+
+
+video_path = os.path.join(APP_ROOT, 'static/img/test.mp4')
+
+
+from dehaze_video import simplest_cb
+from flask.wrappers import Response
+import cv2 as cv
+
+
+class VideoCamera(object):
+    def __init__(self):
+
+        self.cap = cv.VideoCapture(video_path)
+        _, self.last_frame = self.cap.read()
+        self.fps = self.cap.get(cv.CAP_PROP_FPS)
+        self.last_time = time.time()
+        self.delay = 1000 // int(self.fps)
+
+    def __del__(self):
+        self.cap.release()
+
+    def get_frame(self):
+        cur = time.time()
+        if cur > self.last_time + self.delay / 1000:
+            self.last_time = cur
+            success, image = self.cap.read()
+            if image is None:
+                image = self.last_frame
+            self.last_frame = image
+
+
+def gen(camera):
+    while True:
+        camera.get_frame()
+        ret, jpeg = cv.imencode('.jpg', camera.last_frame)
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() +
+               b'\r\n\r\n')
+
+
+def gen_pro(camera):
+    while True:
+        camera.get_frame()
+        image = simplest_cb(camera.last_frame, 1)
+        ret, jpeg = cv.imencode('.jpg', image)
+
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n\r\n')
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(
+        gen(VideoCamera()),
+        mimetype='multipart/x-mixed-replace;boundary=frame'
+    )
+
+@app.route('/video_changed')
+def video_changed():
+    return Response(gen_pro(VideoCamera()),
+                    mimetype='multipart/x-mixed-replace;boundary=frame')
+
+@app.route('/opencv', methods=['GET'])
+def opencv_html():
+    if request.method == 'GET':
+        return render_template("opencv.html")
+
+
+def delfile(path):
+    fileNames = glob.glob(path + r'\*')
+    for fileName in fileNames:
+        try:
+            os.remove(fileName)
+        except:
+            try:
+                os.rmdir(fileName)
+            except:
+                delfile(fileName)
+                os.rmdir(fileName)
+
 
 
 if __name__ == '__main__':
