@@ -7,6 +7,15 @@ import time
 import glob
 import json
 
+import numpy
+import struct
+import webrtcvad
+import bisect
+from scipy.io import wavfile
+import librosa
+import wave
+import scipy.signal as signal
+
 app = Flask(__name__)
 UPLOAD_PATH = 'static/uploads'
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -57,6 +66,16 @@ def webm_to_wav(webm_path, wav_path, sampling_rate, channel):
     os.system(command)
     print("文件格式转化时间" + str(time.time() - start_time))
 
+def save_as_wav(wave_data, dest_file):
+    # 打开WAV文档
+    f = wave.open(dest_file, "wb")
+    # 配置声道数、量化位数和取样频率
+    f.setnchannels(1)
+    f.setsampwidth(4)
+    f.setframerate(16000)
+    # 将wav_data转换为二进制数据写入文件
+    f.writeframes(wave_data.tostring())
+    f.close()
 
 @app.route('/')
 def index():
@@ -118,6 +137,11 @@ def meeting():
         })
     else: 
         print("error method to access this interface! please check it.")
+
+@app.route('/meetings', methods=['GET'])
+def meetings():
+    if request.method == 'GET':
+        return render_template('new_meeting.html', **locals())
 
 
 # @app.route('/psr', methods=['POST'])
@@ -317,6 +341,101 @@ def receive_audio():
     channel = 1
     webm_to_wav(webm_path, wav_path, sampling_rate, channel)
     return 'ok'
+
+audio_stream_buffer = {}
+
+@app.route('/vad_detected', methods=['POST'])
+def vad_detected():
+    """
+    静音片段检测，该接口实现的功能有：
+    1、创建缓冲区，保存前端传过来的语音流
+    2、每3s做一次静音片段检测，步长为1s
+    3、按照ip地址创建缓冲池
+    """
+    # vad_frames = json.dump(request.form.get('vad_frames'))
+    vad_frames = list(json.loads(request.form.get('vad_frames')).values())
+
+    # print(vad_frames)
+    # print(audio_stream_buffer)
+    # 首先判断该用户是否已经在缓冲池中
+    if request.remote_addr not in audio_stream_buffer.keys():
+        audio_stream_buffer[request.remote_addr] = {
+            "id": [],
+            "stream": [],
+        }
+    print("the ip is " + request.remote_addr)
+    buffer_temp = audio_stream_buffer[request.remote_addr]['stream'].copy()
+    position = bisect.bisect(audio_stream_buffer[request.remote_addr]['id'], request.form['id'])
+    bisect.insort(audio_stream_buffer[request.remote_addr]['id'], request.form['id'])
+    if position == 0:
+        previous_frames = []
+        previous_frames.extend(vad_frames)
+        previous_frames.extend(buffer_temp)
+        audio_stream_buffer[request.remote_addr]['stream'] = previous_frames
+    else:
+        previous_frames = buffer_temp[0: position * len(vad_frames)].copy()
+        following_frames = buffer_temp[position * len(vad_frames): ].copy()
+        previous_frames.extend(vad_frames)
+        previous_frames.extend(following_frames)
+        audio_stream_buffer[request.remote_addr]['stream'] = previous_frames
+
+    print(request.form['id'] + '; ' + str(len(audio_stream_buffer[request.remote_addr]['stream'])))
+
+    # 对大约3s的数据做静音检测
+    if len(audio_stream_buffer[request.remote_addr]['stream']) >= 1365 * 36:
+        # wavfile.write("/home/zhuchuanbo/vad_test/1234.wav", 16000, numpy.array(audio_stream_buffer[request.remote_addr]['stream']))
+
+        # 去掉静音片段，并将1365 × 36之前的语音发送做语音识别和声纹识别
+        intervals = librosa.effects.split(numpy.array(audio_stream_buffer[request.remote_addr]['stream']), top_db=30)
+        interval_file_name = str(int(round(time.time() * 1000)))
+        print(interval_file_name)
+        results = {}
+        vad_frame_left = 0
+        print(intervals)
+        for i in range(len(intervals)):
+            # 此时需要分别请求 语音识别 和 声纹识别 两个接口（位于其它两个不同的服务器上），并将数据返回
+            # 将语音保存temp文件中
+            # wavfile.write(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i), 16000, intervals[i])
+            
+            # 判断右端点
+            if intervals[i][1] == len(audio_stream_buffer[request.remote_addr]['stream']):
+                vad_frame_left = intervals[i][0]
+                break
+            save_as_wav(
+                numpy.array(audio_stream_buffer[request.remote_addr]['stream'][intervals[i][0]: intervals[i][1]]), 
+                UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i)
+            )
+
+            files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i), 'rb')}
+            sr_result = requests.post(srUrl, files=files)
+            files['file'].close()
+
+            files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i), 'rb')}
+            asr_result = requests.post(asrUrl, files=files)
+            files['file'].close()
+            results[i] = {
+                {
+                    "sr": sr_result.json(),
+                    "asr": asr_result.json()
+                }
+            }
+        if vad_frame_left != 0:
+            # 删除掉前面的片段
+            audio_stream_buffer[request.remote_addr]['stream'] = audio_stream_buffer[request.remote_addr]['stream'][vad_frame_left: ]
+        else:
+            audio_stream_buffer[request.remote_addr]['stream'] = []
+
+        # todo 此处需要对请求成功与否做出判断
+        # audio_stream_buffer[request.remote_addr]['stream'] = []
+        # print(intervals)
+        print(sr_result)
+        print(asr_result)
+    
+    return results
+        
+    
+    # return 'ok'
+
 
 @app.route('/enroll', methods=['GET', 'POST'])
 def enroll():

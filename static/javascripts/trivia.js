@@ -119,7 +119,7 @@ function startremeeting() {
     startre()
     // 记录语音的段数
     count = 0
-    timer = setInterval(posttempdata, 10000)
+    timer = setInterval(posttempdata, 3000)
     console.log("1234567")
 }
 
@@ -145,7 +145,7 @@ function posttempdata() {
         $.ajax({
             url: "/receive_audio",
             type: "post",
-            async: false,
+            async: true,
             processData: false,
             contentType: false,
             data: formdata,

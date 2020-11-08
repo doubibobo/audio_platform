@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="UTF-8">
+		<title>B508</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="stylesheet" href="{{ url_for('static', filename='stylesheets/templatemo-style.css') }}">
+		<link rel="stylesheet" href="{{ url_for('static', filename='stylesheets/dropzone.css') }}">
+		<link rel="stylesheet" href="{{ url_for('static', filename='stylesheets/font-awesome.min.css') }}">
+		<link rel="stylesheet" href="{{ url_for('static', filename='stylesheets/styles.css') }}">
+		
+		<!--
+			<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+		-->
+
+		<script src="{{ url_for('static', filename='javascripts/dropzone.min.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/wavesurfer.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/wavesurfer.spectrogram.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/wavesurfer.regions.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/wavesurfer.cursor.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/wavesurfer.timeline.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/jquery.min.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/RecordRTC.min.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/recorder.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/bootstrap.min.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/serversource.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/app.js')}}"></script>
+		<script src="{{ url_for('static', filename='javascripts/index.js')}}"></script>
+        <!-- <script src="{{ url_for('static', filename='javascripts/trivia.js')}}"></script> -->
+        <!-- <script src="{{ url_for('static', filename='javascripts/data_structure/cicularQueue.js')}}" type="module"></script> -->
+        <script src="{{ url_for('static', filename='javascripts/meetings.js')}}"></script>
+    </head>
+
+	<body>
+
+		<div class="container">
+			<!-- Top box -->
+			<!-- Logo & Site Name -->
+			<div class="placeholder">
+				<div class="col-md-6 col-12">
+					<img src="static/img/logo.png" alt="Logo" class="tm-site-logo" />
+					<div class="tm-site-text-box">
+						<!--
+							<h1 class="tm-site-title">武汉光电国家研究中心</h1>
+						-->
+						<h1 class="tm-site-description">大数据与智能认知实验室</h1>
+					</div>
+				</div>
+
+			</div>
+
+			<main>
+				<header class="row tm-welcome-section">
+					<select id="server-select">
+						<option value="edge" selected="selected">边缘服务器</option>
+						<option value="cloud">云服务器</option>
+					</select>
+					<h2 class="col-12 text-center tm-section-title">Online Meeting System</h2>
+					<p class="col-12 text-left">Speaker recognition system knows “who you are” as soon as it hears your speech voice. Of course, if your voice has not been enrolled, you will be considered as a stranger. In the future, we will develop systems that only understand specific person’s speech utterances via combining automatic speech recognition and speaker recognition.</p>
+				</header>
+
+				<div class="row tm-gallery">
+					<!-- Distinguish Page -->
+					<div id="voiceprintdetection-distinguish-page" class="tm-gallery-page vd-gallery-page">
+						<div class="tm-paging-links" style="position: relative;margin:auto;">
+							<ul style="font-size: x-small">
+								</li>
+								<li class="tm-paging-item" data-action="meeting_reco_starting">
+                                    <a class="tm-paging-button">StartRecording</a>
+								</li>
+								<li class="tm-paging-item" data-action="meeting_reco_ending">
+                                    <a class="tm-paging-button">StopRecording</a>
+								</li>
+							</ul>
+						</div>
+						<br><br><br>
+						<div id="demo" class="tm-gallery-item" style="margin: auto;">
+							<div id="dialogs-result" class="tm-gallery-item presult" style="border: 1px solid #000;margin: auto;">
+								<ul style="font-size: xx-large;margin: 20px 80px;">
+										<div class="form-group">
+											<label for="exampleFormControlTextarea1">Dialogs</label>
+											<textarea class="form-control" id="meeting-asr-sr" rows="15"></textarea>
+										</div>
+								</ul>
+							</div>
+							<div id="waveform6" class="tm-gallery-item" style="border: 1px solid #000;">
+								<br />
+								<div class="progress progress-striped active" id="progress-bar">
+									<div class="progress-bar progress-bar-info"></div>
+								</div>
+							</div>
+							<div id="wave-timeline6" class="wave-timeline" style="background-color: azure"></div>
+							<p style="text-align: center;font-size: x-large; font-style: italic">waveform</p>
+							<!-- Here be waveform -->
+							<div id="wave-spectrogram6" class="tm-gallery-item" style="border: 1px solid #000;"></div>
+							<p style="text-align: center;font-size: x-large; font-style: italic">spectrogram</p>
+						</div>
+						<br><br><br>
+
+					</div>
+
+					
+
+			</main>
+
+			<footer class="tm-footer text-center">
+				<button id="return-index-btn"><a href="/">>>Back to main page</a></button>
+				<p>Copyright &copy; 2019-2020.WLNO-B508 All rights reserved.</p>
+			</footer>
+		</div>
+
+	</body>
+</html>

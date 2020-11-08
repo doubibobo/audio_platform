@@ -153,3 +153,4 @@ dmypy.json
 
 # 相关语音文件信息
 *.wav
+*.webm
