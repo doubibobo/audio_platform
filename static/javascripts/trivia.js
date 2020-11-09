@@ -119,7 +119,7 @@ function startremeeting() {
     startre()
     // 记录语音的段数
     count = 0
-    timer = setInterval(posttempdata, 3000)
+    timer = setInterval(posttempdata, 10000)
     console.log("1234567")
 }
 

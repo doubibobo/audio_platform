@@ -177,6 +177,8 @@ function createJSNode(audioContext) {
 // 能够保存11.4min的数据，可防止因网络卡顿造成语音数据丢失。
 // 大小为2MB，默认缓冲区的时间长度为1min，按照16KHz、2字节的换算，约为1.8MB
 var audioBufferQueue = Object.create(MyCircularQueue).createNew(8192);
+// 创建websocket
+var ws = new WebSocket("ws://")
 
 // TODO 监听缓冲区变量audioBufferQueue，当其size大于36时，传到后端做VAD检测
 handler = {
