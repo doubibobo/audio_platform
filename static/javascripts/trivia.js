@@ -145,7 +145,7 @@ function posttempdata() {
         $.ajax({
             url: "/receive_audio",
             type: "post",
-            async: false,
+            async: true,
             processData: false,
             contentType: false,
             data: formdata,

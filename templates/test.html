@@ -1,0 +1,19 @@
+<html>
+    <body>
+     
+    <script>
+            // 建立socket连接，等待服务器“推送”数据，用回调函数更新图表
+            $(document).ready(function () {
+                namespace = '/test';
+                var socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port + namespace);
+     
+                socket.on('server_response', function (res) {
+                    console.log(res)
+                    console.log(res.workStatusNow)
+                    console.log(res.gps_height)
+                });
+     
+            });
+    </script>
+    </body>
+    </html

@@ -107,7 +107,7 @@ $(document).ready(function(){
 			// todo, 这里需要设置同步、异步按钮
 			// js  同步实现: 因为会异步调用设置的方法，必须要等其执行完才能想向下执行
 	    	registerRecoVideo.stopRecording(function () {
-		        var fileName = getTime() + '.wav';
+		        var fileName = getTime() + '.webm';
 		        registerFormdata.set("audio", registerRecoVideo.getBlob()); // form input type="file"
 				registerFormdata.set("mp3name", fileName);
 				startRegisterReco = false;
