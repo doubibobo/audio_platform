@@ -587,7 +587,7 @@ def begin_recording(data):
 
 @socketIO.on('send_wav_message', namespace='/test')
 def sending_message(data):
-    print('the data is ', data)
+    # print('the data is ', data)
     vad_frames = list(json.loads(data['vad_frames']).values())
     vad_frames = (numpy.array(vad_frames) * 0x7FFF).astype(numpy.int16).tolist()
 
@@ -611,8 +611,8 @@ def sending_result(data):
     print("收到请求！")
     key, value = data['remote_addr'], audio_stream_buffer[data['remote_addr']]
     # 记录首次静音检测片段的大小, await标志小于3s数据存在时间，超过20时直接退出，认为已经识别完毕
-    vad_frame_length, await = 4096 * 12, 0
-    while audio_stream_buffer[key]['stream'].queue_length() != 0 and await <= 20:
+    vad_frame_length, await_time = 4096 * 12, 0
+    while audio_stream_buffer[key]['stream'].queue_length() != 0 and await_time <= 20:
         print("继续检测......")
         # 对大约3s的数据做静音检测
         if value['stream'].queue_length() >= vad_frame_length:
@@ -653,6 +653,8 @@ def sending_result(data):
                     asr_result = requests.post(asrUrl, files=files)
                     files['file'].close()
                     # TODO asr_result.json(), sr.result.json()
+                    print(sr_result.json())
+                    print(asr_result.json())
                     emit('asr_sr_result', {
                         'code': 200,
                         "sr": sr_result.json(),
@@ -669,11 +671,11 @@ def sending_result(data):
             # 清除队列中已经识别完成的语音流，将队列的头部指向queue_front
             print('the queue_front is ' + str(queue_front))
             audio_stream_buffer[key]['stream'].redirect_queue(queue_front)
-            await = 0
+            await_time = 0
         else:
             # # 剩余的不足3s的语音直接舍弃
             # TODO：有可能其上传的没有这么快，所以不能直接break掉，要通过其它条件判断
-            await = await + 1
+            await_time = await_time + 1
             continue
     emit('data_response', {
         'code': 200,
