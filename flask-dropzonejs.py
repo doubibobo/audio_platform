@@ -537,8 +537,8 @@ def new():
     return render_template("new.html")
 
 
-socketIO = SocketIO()
-socketIO.init_app(app)
+socketIO = SocketIO(app, cors_allowed_origins='*')
+# socketIO.init_app(app)
 
 """
 对app进行一些路由设置
@@ -607,12 +607,12 @@ def sending_message(data):
 
 @socketIO.on('send_result', namespace='/test')
 def sending_result(data):
-    time.sleep(5)
     print("收到请求！")
     key, value = data['remote_addr'], audio_stream_buffer[data['remote_addr']]
     # 记录首次静音检测片段的大小
     vad_frame_length = 4096 * 12
     while audio_stream_buffer[key]['stream'].queue_length() != 0:
+        print("继续检测......")
         # 对大约3s的数据做静音检测
         if value['stream'].queue_length() >= vad_frame_length:
             # 获得队列中前3s的数据，静音检测2s
@@ -645,22 +645,18 @@ def sending_result(data):
                         UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav'
                     )
 
-                    # files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
-                    # sr_result = requests.post(srUrl, files=files)
-                    # files['file'].close()
-                    #
-                    # files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
-                    # asr_result = requests.post(asrUrl, files=files)
-                    # files['file'].close()
+                    files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+                    sr_result = requests.post(srUrl, files=files)
+                    files['file'].close()
+                    
+                    files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+                    asr_result = requests.post(asrUrl, files=files)
+                    files['file'].close()
                     # TODO asr_result.json(), sr.result.json()
-                    # results[i] = {
-                    #     "sr": {'result': 'unknown'},
-                    #     "asr": {'result': '*******'}
-                    # }
                     emit('asr_sr_result', {
                         'code': 200,
-                        "sr": {'result': 'unknown'},
-                        "asr": {'result': '*******'}
+                        "sr": sr_result.json(),
+                        "asr": asr_result.json()
                     })
                 vad_frame_length = 4096 * 12
 
@@ -675,8 +671,8 @@ def sending_result(data):
             audio_stream_buffer[key]['stream'].redirect_queue(queue_front)
         else:
             # # 剩余的不足3s的语音直接舍弃
-            # break
-            continue
+            break
+            # continue
     emit('data_response', {
         'code': 200,
         'msg': '语音流识别完毕！'
@@ -721,14 +717,14 @@ def give_response():
 
 
 if __name__ == '__main__':
-    app.run(
-        debug=True,
-        host="127.0.0.1",
-        port=4000
-    )
-    # socketIO.run(
-    #    app,
+    # app.run(
     #    debug=True,
-    #    host='127.0.0.1',
+    #    host="127.0.0.1",
     #    port=4000
     # )
+    socketIO.run(
+        app,
+        debug=False,
+        host='127.0.0.1',
+        port=4000
+    )
