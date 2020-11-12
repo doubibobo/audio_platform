@@ -537,8 +537,8 @@ def new():
     return render_template("new.html")
 
 
-socketIO = SocketIO()
-socketIO.init_app(app)
+socketIO = SocketIO(app, cors_allowed_origins='*')
+# socketIO.init_app(app)
 
 """
 对app进行一些路由设置
@@ -587,6 +587,7 @@ def begin_recording(data):
 
 @socketIO.on('send_wav_message', namespace='/test')
 def sending_message(data):
+    print('the data is ', data)
     vad_frames = list(json.loads(data['vad_frames']).values())
     vad_frames = (numpy.array(vad_frames) * 0x7FFF).astype(numpy.int16).tolist()
 
@@ -607,12 +608,12 @@ def sending_message(data):
 
 @socketIO.on('send_result', namespace='/test')
 def sending_result(data):
-    time.sleep(5)
     print("收到请求！")
     key, value = data['remote_addr'], audio_stream_buffer[data['remote_addr']]
-    # 记录首次静音检测片段的大小
-    vad_frame_length = 4096 * 12
-    while audio_stream_buffer[key]['stream'].queue_length() != 0:
+    # 记录首次静音检测片段的大小, await标志小于3s数据存在时间，超过20时直接退出，认为已经识别完毕
+    vad_frame_length, await = 4096 * 12, 0
+    while audio_stream_buffer[key]['stream'].queue_length() != 0 and await <= 20:
+        print("继续检测......")
         # 对大约3s的数据做静音检测
         if value['stream'].queue_length() >= vad_frame_length:
             # 获得队列中前3s的数据，静音检测2s
@@ -626,7 +627,6 @@ def sending_result(data):
             )
             interval_file_name = str(int(round(time.time() * 1000)))
             print(interval_file_name)
-            print(intervals)
             save_wave(
                 numpy.array(buffer_temp, dtype=numpy.int16),
                 UPLOAD_PATH + '/temp/' + interval_file_name + '.wav'
@@ -645,22 +645,18 @@ def sending_result(data):
                         UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav'
                     )
 
-                    # files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
-                    # sr_result = requests.post(srUrl, files=files)
-                    # files['file'].close()
-                    #
-                    # files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
-                    # asr_result = requests.post(asrUrl, files=files)
-                    # files['file'].close()
+                    files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+                    sr_result = requests.post(srUrl, files=files)
+                    files['file'].close()
+
+                    files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+                    asr_result = requests.post(asrUrl, files=files)
+                    files['file'].close()
                     # TODO asr_result.json(), sr.result.json()
-                    # results[i] = {
-                    #     "sr": {'result': 'unknown'},
-                    #     "asr": {'result': '*******'}
-                    # }
                     emit('asr_sr_result', {
                         'code': 200,
-                        "sr": {'result': 'unknown'},
-                        "asr": {'result': '*******'}
+                        "sr": sr_result.json(),
+                        "asr": asr_result.json()
                     })
                 vad_frame_length = 4096 * 12
 
@@ -673,9 +669,11 @@ def sending_result(data):
             # 清除队列中已经识别完成的语音流，将队列的头部指向queue_front
             print('the queue_front is ' + str(queue_front))
             audio_stream_buffer[key]['stream'].redirect_queue(queue_front)
+            await = 0
         else:
             # # 剩余的不足3s的语音直接舍弃
-            # break
+            # TODO：有可能其上传的没有这么快，所以不能直接break掉，要通过其它条件判断
+            await = await + 1
             continue
     emit('data_response', {
         'code': 200,
