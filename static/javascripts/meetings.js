@@ -95,6 +95,7 @@ $(document).ready(function() {
     // Connect to the Socket.IO server.
     // The connection URL has the following format, relative to the current page:
     //     http[s]://<domain>:<port>[/<namespace>]
+    // todo：使用代理后，域名变为—— https://b508.mynatapp.cc:80/test
     let socket = io(namespace);
 
     $('#meeting_reco_starting').click(
