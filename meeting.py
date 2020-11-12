@@ -242,13 +242,11 @@ def stop_recording(data):
 
 
 @socketIO.on('request_for_response', namespace='/test')
-def give_response(data):
+def give_response():
     """
     用于接收前端传来的数据，并返回处理结果
-    :param data:
-    :return:
+    :return: 无
     """
-    value = data.get('param')
     # 可以进行一些对value的处理或者其它操作，在此期间可以随时调用emit方法向前台发送消息
     emit('response', {
         'code': 200,

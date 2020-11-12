@@ -8,7 +8,7 @@ $(document).ready(function() {
      * Initialize your data structure here. Set the size of the queue to be k.
      * @param {number} k
      */
-    var MyCircularQueue = function(k) {
+    let MyCircularQueue = function (k) {
         this.size = k       // 队列大小
         this.head = -1      // 队列头
         this.tail = -1      // 队列尾
@@ -19,7 +19,7 @@ $(document).ready(function() {
     /**
      * Insert an element into the circular queue. Return true if the operation is successful.
      * Attention:
-     *      in the situation of audiostream, every value needed to insert is a array.
+     *      in the situation of audio stream, every value needed to insert is a array.
      * @param {number} value
      * @return {boolean}
      */
@@ -90,16 +90,6 @@ $(document).ready(function() {
         return new MyCircularQueue(k)
     };
 
-    const GLOBAL_ACTIONS = {
-        meeting_reco_starting: function () {
-            record();
-        },
-        meeting_reco_ending: function () {
-            stopRecord();
-        }
-    };
-
-
     let namespace = '/test';
 
     // Connect to the Socket.IO server.
@@ -138,24 +128,6 @@ $(document).ready(function() {
             socket.close()
         }
     )
-    /**
-     * 浏览器录音功能重写
-     * 功能是：调用浏览器的录音设备，并将语音流输出到另一个设备
-     */
-    // function record() {
-    //     console.log("enter the project of recording... ")
-    //     // 浏览器录音功能的重写
-    //     window.navigator.mediaDevices.getUserMedia({
-    //         audio: true
-    //     }).then(mediaStream => {
-    //         console.log(mediaStream)
-    //         beginRecord(mediaStream);
-    //     }).catch(err => {
-    //         // 如果用户没有麦克风或者用户拒绝了，或者连接出了问题等
-    //         // 这边都会抛异常，并且通过error.name知道是哪种类型的错误
-    //         console.error(err);
-    //     });
-    // }
 
     /**
      * 输入语音流和输出语音流的连接
@@ -202,7 +174,7 @@ $(document).ready(function() {
     }
 
     // 创建队列，保存经过处理后的outputBuffer信息
-    // 按照现有的BGUFFER_SIZE，bufferQueue中每12个元素才能代表1s，缓冲区留足10min
+    // 按照现有的BUFFER_SIZE，bufferQueue中每12个元素才能代表1s，缓冲区留足10min
     // 按照前端采样率48kHZ的界定
     // 该缓冲区所占存储空间为：1365 * 8192 * 4B = 43680KB = 42.66MB
     // 能够保存11.4min的数据，可防止因网络卡顿造成语音数据丢失。
@@ -223,6 +195,8 @@ $(document).ready(function() {
     socket.on('asr_sr_result', function(msg, cb) {
         document.getElementById('meeting-asr-sr').innerHTML
             = document.getElementById('meeting-asr-sr').innerHTML + '\r\n code # ' + msg.code + ' ' + msg.sr.result + ': ' + msg.asr.result;
+        if (cb)
+            cb();
     });
 
     // TODO 监听缓冲区变量audioBufferQueue，当其size大于36时，传到后端做VAD检测
@@ -287,15 +261,4 @@ $(document).ready(function() {
     }
 
     console.log("listen the capacity... ");
-
-    // /**
-    //  * 停止录音，这里有一个变量作用域的问题
-    //  */
-    // function stopRecord() {
-    //     localStream.getAudioTracks()[0].stop();
-    //     mediaNode.disconnect();
-    //     jsNode.disconnect();
-    //     console.log(audioBufferQueue);
-    //     // TODO 需要清空缓冲区
-    // }
 });
