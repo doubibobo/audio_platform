@@ -721,14 +721,14 @@ def give_response():
 
 
 if __name__ == '__main__':
-    # app.run(
-    #     debug=True,
-    #     host="127.0.0.1",
-    #     port=4000
-    # )
-    socketIO.run(
-        app,
+    app.run(
         debug=True,
-        host='0.0.0.0',
+        host="127.0.0.1",
         port=4000
     )
+    # socketIO.run(
+    #    app,
+    #    debug=True,
+    #    host='127.0.0.1',
+    #    port=4000
+    # )
