@@ -537,198 +537,203 @@ def new():
     return render_template("new.html")
 
 
-socketIO = SocketIO(app, cors_allowed_origins='*')
-# socketIO.init_app(app)
+# socketIO = SocketIO(app, cors_allowed_origins='*')
+# # socketIO.init_app(app)
 
-"""
-对app进行一些路由设置
-"""
+# """
+# 对app进行一些路由设置
+# """
 
-"""
-对socket进行一些监听设置
-"""
-# 设置全局缓冲
-audio_stream_buffer = {}
-
-
-def save_wave(wav, file_path):
-    # 配置声道数、量化位数和取样频率
-    file = wave.open(file_path, 'wb')
-    file.setnchannels(1)
-    file.setsampwidth(2)
-    file.setframerate(16000)
-    # 将wav_data转换为二进制数据写入文件
-    file.writeframes(wav.tostring())
-    file.close()
+# """
+# 对socket进行一些监听设置
+# """
+# # 设置全局缓冲
+# audio_stream_buffer = {}
 
 
-@socketIO.on('begin_recording', namespace='/test')
-def begin_recording(data):
-    """
-    用来创建针对用户的缓冲区，每个用户在该缓冲区中识别
-    :param data: 用户信息
-    :return: 发送缓冲区创建成功的消息
-    """
-    # 首先判断该用户是否已经在缓冲池中
-    if data['remote_addr'] not in audio_stream_buffer.keys():
-        audio_stream_buffer[data['remote_addr']] = {
-            "stream": SqQueue(1365 * 12 * 60 * 5),
-        }
-        emit('data_response', {
-            'code': 200,
-            'msg': '录音开始......'
-        })
-    else:
-        emit('data_response', {
-            'code': 500,
-            'msg': '语音处理完毕前，请不要重复录音！'
-        })
+# def save_wave(wav, file_path):
+#     # 配置声道数、量化位数和取样频率
+#     file = wave.open(file_path, 'wb')
+#     file.setnchannels(1)
+#     file.setsampwidth(2)
+#     file.setframerate(16000)
+#     # 将wav_data转换为二进制数据写入文件
+#     file.writeframes(wav.tostring())
+#     file.close()
 
 
-@socketIO.on('send_wav_message', namespace='/test')
-def sending_message(data):
-    # print('the data is ', data)
-    vad_frames = list(json.loads(data['vad_frames']).values())
-    vad_frames = (numpy.array(vad_frames) * 0x7FFF).astype(numpy.int16).tolist()
+# @socketIO.on('begin_recording', namespace='/test')
+# def begin_recording(data):
+#     """
+#     用来创建针对用户的缓冲区，每个用户在该缓冲区中识别
+#     :param data: 用户信息
+#     :return: 发送缓冲区创建成功的消息
+#     """
+#     # 首先判断该用户是否已经在缓冲池中
+#     if data['remote_addr'] not in audio_stream_buffer.keys():
+#         audio_stream_buffer[data['remote_addr']] = {
+#             "stream": SqQueue(1365 * 12 * 60 * 5),
+#         }
+#         emit('data_response', {
+#             'code': 200,
+#             'msg': '录音开始......'
+#         })
+#     else:
+#         emit('data_response', {
+#             'code': 500,
+#             'msg': '语音处理完毕前，请不要重复录音！'
+#         })
 
-    for vad_frame in vad_frames:
-        if audio_stream_buffer[data['remote_addr']]['stream'].enqueue(vad_frame):
-            continue
-        else:
-            emit('data_response', {
-                'code': 500,
-                'msg': '缓冲区满，请稍后再试！'
-            })
-            break
-    emit('data_response', {
-        'code': 200,
-        'msg': '语音流成功推送！'
-    })
+
+# count = 0
+
+# @socketIO.on('send_wav_message', namespace='/test')
+# def sending_message(data):
+#     # print('the data is ', data)
+#     global count
+#     count = count + 1
+#     print(count)
+#     vad_frames = list(json.loads(data['vad_frames']).values())
+#     vad_frames = (numpy.array(vad_frames) * 0x7FFF).astype(numpy.int16).tolist()
+
+#     for vad_frame in vad_frames:
+#         if audio_stream_buffer[data['remote_addr']]['stream'].enqueue(vad_frame):
+#             continue
+#         else:
+#             emit('data_response', {
+#                 'code': 500,
+#                 'msg': '缓冲区满，请稍后再试！'
+#             })
+#             break
+#     emit('data_response', {
+#         'code': 200,
+#         'msg': '语音流成功推送！'
+#     })
 
 
-@socketIO.on('send_result', namespace='/test')
-def sending_result(data):
-    print("收到请求！")
-    key, value = data['remote_addr'], audio_stream_buffer[data['remote_addr']]
-    # 记录首次静音检测片段的大小, await标志小于3s数据存在时间，超过20时直接退出，认为已经识别完毕
-    vad_frame_length, await_time = 4096 * 12, 0
-    while audio_stream_buffer[key]['stream'].queue_length() != 0 and await_time <= 20:
-        print("继续检测......")
-        # 对大约3s的数据做静音检测
-        if value['stream'].queue_length() >= vad_frame_length:
-            # 获得队列中前3s的数据，静音检测2s
-            buffer_temp, queue_front = value['stream'].get_queue(vad_frame_length), vad_frame_length - 4096 * 2
-            # 去掉静音片段，并将1365 × 36之前的语音发送做语音识别和声纹识别
-            intervals = vad_with_webrtc(
-                numpy.array(
-                    buffer_temp, dtype=numpy.int16
-                ),
-                16000
-            )
-            interval_file_name = str(int(round(time.time() * 1000)))
-            print(interval_file_name)
-            save_wave(
-                numpy.array(buffer_temp, dtype=numpy.int16),
-                UPLOAD_PATH + '/temp/' + interval_file_name + '.wav'
-            ),
-            for i in range(len(intervals)):
-                # 此时需要分别请求 语音识别 和 声纹识别 两个接口（位于其它两个不同的服务器上），并将数据返回
-                # 将语音保存temp文件中
-                # wavfile.write(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i), 16000, intervals[i])
-                # 1. 非静音片段的右端点 小于 取出的语音流长度[这里往前取一点，]，则正常识别, 1*4096表示0.256s的数据
-                if intervals[i][1] < queue_front:
-                    save_wave(
-                        numpy.array(
-                            buffer_temp[intervals[i][0]: intervals[i][1]],
-                            dtype=numpy.int16
-                        ),
-                        UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav'
-                    )
+# @socketIO.on('send_result', namespace='/test')
+# def sending_result(data):
+#     print("收到请求！")
+#     key, value = data['remote_addr'], audio_stream_buffer[data['remote_addr']]
+#     # 记录首次静音检测片段的大小, await标志小于3s数据存在时间，超过20时直接退出，认为已经识别完毕
+#     vad_frame_length, await_time = 4096 * 12, 0
+#     while audio_stream_buffer[key]['stream'].queue_length() != 0 and await_time <= 2000:
+#         # print("继续检测......" + str(audio_stream_buffer[key]['stream'].queue_length()))
+#         # 对大约3s的数据做静音检测
+#         if value['stream'].queue_length() >= vad_frame_length:
+#             # 获得队列中前3s的数据，静音检测2s
+#             buffer_temp, queue_front = value['stream'].get_queue(vad_frame_length), vad_frame_length - 4096 * 2
+#             # 去掉静音片段，并将1365 × 36之前的语音发送做语音识别和声纹识别
+#             intervals = vad_with_webrtc(
+#                 numpy.array(
+#                     buffer_temp, dtype=numpy.int16
+#                 ),
+#                 16000
+#             )
+#             interval_file_name = str(int(round(time.time() * 1000)))
+#             print(interval_file_name)
+#             save_wave(
+#                 numpy.array(buffer_temp, dtype=numpy.int16),
+#                 UPLOAD_PATH + '/temp/' + interval_file_name + '.wav'
+#             ),
+#             for i in range(len(intervals)):
+#                 # 此时需要分别请求 语音识别 和 声纹识别 两个接口（位于其它两个不同的服务器上），并将数据返回
+#                 # 将语音保存temp文件中
+#                 # wavfile.write(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i), 16000, intervals[i])
+#                 # 1. 非静音片段的右端点 小于 取出的语音流长度[这里往前取一点，]，则正常识别, 1*4096表示0.256s的数据
+#                 if intervals[i][1] < queue_front:
+#                     save_wave(
+#                         numpy.array(
+#                             buffer_temp[intervals[i][0]: intervals[i][1]],
+#                             dtype=numpy.int16
+#                         ),
+#                         UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav'
+#                     )
 
-                    files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
-                    sr_result = requests.post(srUrl, files=files)
-                    files['file'].close()
+#                     files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+#                     sr_result = requests.post(srUrl, files=files)
+#                     files['file'].close()
                     
-                    files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
-                    asr_result = requests.post(asrUrl, files=files)
-                    files['file'].close()
-                    # TODO asr_result.json(), sr.result.json()
-                    print(sr_result.json())
-                    print(asr_result.json())
-                    emit('asr_sr_result', {
-                        'code': 200,
-                        "sr": sr_result.json(),
-                        "asr": asr_result.json()
-                    })
-                vad_frame_length = 4096 * 12
+#                     files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+#                     asr_result = requests.post(asrUrl, files=files)
+#                     files['file'].close()
+#                     # TODO asr_result.json(), sr.result.json()
+#                     print(sr_result.json())
+#                     print(asr_result.json())
+#                     emit('asr_sr_result', {
+#                         'code': 200,
+#                         "sr": sr_result.json(),
+#                         "asr": asr_result.json()
+#                     })
+#                 vad_frame_length = 4096 * 12
 
-                # 2. 非静音片段的右端点 等于 取出的语音长度，则不进行识别，与后续语音流拼接后识别
-                if intervals[i][1] >= queue_front:
-                    queue_front = intervals[i][0]
-                    vad_frame_length = 4096 * 12 + intervals[i][1] - intervals[i][0]
-                    break
+#                 # 2. 非静音片段的右端点 等于 取出的语音长度，则不进行识别，与后续语音流拼接后识别
+#                 if intervals[i][1] >= queue_front:
+#                     queue_front = intervals[i][0]
+#                     vad_frame_length = 4096 * 12 + intervals[i][1] - intervals[i][0]
+#                     break
 
-            # 清除队列中已经识别完成的语音流，将队列的头部指向queue_front
-            print('the queue_front is ' + str(queue_front))
-            audio_stream_buffer[key]['stream'].redirect_queue(queue_front)
-            await_time = 0
-        else:
-            # # 剩余的不足3s的语音直接舍弃
-            # TODO：有可能其上传的没有这么快，所以不能直接break掉，要通过其它条件判断
-            await_time = await_time + 1
-            continue
-    emit('data_response', {
-        'code': 200,
-        'msg': '语音流识别完毕！'
-    })
-
-
-@socketIO.on('stop_recording', namespace='/test')
-def stop_recording(data):
-    # 首先判断该用户是否已经在缓冲池中
-    if data['remote_addr'] not in audio_stream_buffer.keys():
-        emit('data_response', {
-            'code': 500,
-            'msg': '结束录音之前，请先开始录音！'
-        })
-    else:
-        while audio_stream_buffer[data['remote_addr']]['stream'].queue_length() != 0:
-            audio_stream_buffer[data['remote_addr']]['stream'].dequeue()
-        audio_stream_buffer.pop(data['remote_addr'])
-        emit('data_response', {
-            'code': 200,
-            'msg': '成功停止录音！'
-        })
+#             # 清除队列中已经识别完成的语音流，将队列的头部指向queue_front
+#             print('the queue_front is ' + str(queue_front))
+#             audio_stream_buffer[key]['stream'].redirect_queue(queue_front)
+#             await_time = 0
+#         else:
+#             # # 剩余的不足3s的语音直接舍弃
+#             # TODO：有可能其上传的没有这么快，所以不能直接break掉，要通过其它条件判断
+#             # await_time = await_time + 1
+#             continue
+#     emit('data_response', {
+#         'code': 200,
+#         'msg': '语音流识别完毕！'
+#     })
 
 
-@socketIO.on('request_for_response', namespace='/test')
-def give_response():
-    """
-    用于接收前端传来的数据，并返回处理结果
-    :return: 无
-    """
-    # 可以进行一些对value的处理或者其它操作，在此期间可以随时调用emit方法向前台发送消息
-    emit('response', {
-        'code': 200,
-        'msg': 'start to process...'
-    })
+# @socketIO.on('stop_recording', namespace='/test')
+# def stop_recording(data):
+#     # 首先判断该用户是否已经在缓冲池中
+#     if data['remote_addr'] not in audio_stream_buffer.keys():
+#         emit('data_response', {
+#             'code': 500,
+#             'msg': '结束录音之前，请先开始录音！'
+#         })
+#     else:
+#         while audio_stream_buffer[data['remote_addr']]['stream'].queue_length() != 0:
+#             audio_stream_buffer[data['remote_addr']]['stream'].dequeue()
+#         audio_stream_buffer.pop(data['remote_addr'])
+#         emit('data_response', {
+#             'code': 200,
+#             'msg': '成功停止录音！'
+#         })
 
-    time.sleep(5)
-    emit('response', {
-        'code': 200,
-        'msg': 'processed'
-    })
+
+# @socketIO.on('request_for_response', namespace='/test')
+# def give_response():
+#     """
+#     用于接收前端传来的数据，并返回处理结果
+#     :return: 无
+#     """
+#     # 可以进行一些对value的处理或者其它操作，在此期间可以随时调用emit方法向前台发送消息
+#     emit('response', {
+#         'code': 200,
+#         'msg': 'start to process...'
+#     })
+
+#     time.sleep(5)
+#     emit('response', {
+#         'code': 200,
+#         'msg': 'processed'
+#     })
 
 
 if __name__ == '__main__':
-    # app.run(
-    #    debug=True,
-    #    host="127.0.0.1",
-    #    port=4000
-    # )
-    socketIO.run(
-        app,
-        debug=False,
-        host='127.0.0.1',
-        port=4000
+    app.run(
+       debug=True,
+       host="0.0.0.0",
+       port=4000
     )
+    # socketIO.run(
+    #     app,
+    #     debug=True,
+    #     host='127.0.0.1',
+    #     port=4000
+    # )
