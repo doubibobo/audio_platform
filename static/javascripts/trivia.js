@@ -90,7 +90,8 @@ function startre() {
 function stopre() {
     recordVideo.stopRecording(function () {
         flag = true;
-        mp3name = getTime() + '.webm';
+        // mp3name = getTime() + '.webm';
+        mp3name = (new Date()).valueOf() + '.webm';
         var formdata = new FormData(); // form 表单 {key:value}
         formdata.append("audio", recordVideo.getBlob()); // form input type="file"
         formdata.append("name", servername);
@@ -132,7 +133,7 @@ function startremeeting() {
 function posttempdata() {
     recordVideo.stopRecording(function () {
         flag = true;
-        mp3name = getTime() + '_' + count + '.webm';
+        mp3name = (new Date()).valueOf()+ '_' + count + '.webm';
         count++;
 
         // 填充并设置表单

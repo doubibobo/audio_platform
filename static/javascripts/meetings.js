@@ -196,6 +196,9 @@ $(document).ready(function() {
     socket.on('asr_sr_result', function(msg, cb) {
         document.getElementById('meeting-asr-sr').innerHTML
             = document.getElementById('meeting-asr-sr').innerHTML + '\r\n code # ' + msg.code + ' ' + msg.sr.result + ': ' + msg.asr.result;
+        socket.emit('send_result', {
+            'remote_addr': location.host
+        })
         if (cb)
             cb();
     });

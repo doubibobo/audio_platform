@@ -6,6 +6,7 @@ import time
 import json
 import numpy
 import webrtcvad
+import requests
 import struct
 import wave
 
@@ -87,6 +88,9 @@ def vad_with_webrtc(wav, sample_rate, frame_window=0.020, signal_byte=2):
 
 
 def save_wave(wav, file_path):
+    """
+    保存语音文件
+    """
     # 配置声道数、量化位数和取样频率
     file = wave.open(file_path, 'wb')
     file.setnchannels(1)
@@ -112,7 +116,8 @@ def begin_recording(data):
     # 首先判断该用户是否已经在缓冲池中
     if data['remote_addr'] not in audio_stream_buffer.keys():
         audio_stream_buffer[data['remote_addr']] = {
-            "stream": SqQueue(1365 * 12 * 60 * 5),
+            "stream": SqQueue(4096 * 4 * 60 * 5),
+            "vad_frames": 4096 * 12
         }
         emit('data_response', {
             'code': 200,
@@ -124,9 +129,13 @@ def begin_recording(data):
             'msg': '语音处理完毕前，请不要重复录音！'
         })
 
+count = 0
 
 @socketIO.on('send_wav_message', namespace='/test')
 def sending_message(data):
+    global count 
+    count = count + 1
+    print("第" + str(count) + '段语音')
     vad_frames = list(json.loads(data['vad_frames']).values())
     vad_frames = (numpy.array(vad_frames) * 0x7FFF).astype(numpy.int16).tolist()
 
@@ -145,82 +154,158 @@ def sending_message(data):
     })
 
 
+def do_asr_sr_recognition(key, value, vad_frame_length):
+    """
+    做asr和sr识别
+    """
+    # print("继续检测......" + str(audio_stream_buffer[key]['stream'].queue_length()))
+    # 对大约3s的数据做静音检测
+    # 获得队列中前3s的数据，静音检测2s
+    buffer_temp, queue_front = value['stream'].get_queue(vad_frame_length), vad_frame_length - 4096 * 2
+    # 保存sr和asr识别结果
+    results = {}
+    # 去掉静音片段，并将1365 × 36之前的语音发送做语音识别和声纹识别
+    intervals = vad_with_webrtc(
+        numpy.array(
+            buffer_temp, dtype=numpy.int16
+        ),
+        16000
+    )
+    interval_file_name = str(int(round(time.time() * 1000)))
+    print(interval_file_name)
+    save_wave(
+        numpy.array(buffer_temp, dtype=numpy.int16),
+        UPLOAD_PATH + '/temp/' + interval_file_name + '.wav'
+    ),
+    for i in range(len(intervals)):
+        # 此时需要分别请求 语音识别 和 声纹识别 两个接口（位于其它两个不同的服务器上），并将数据返回
+        # 将语音保存temp文件中
+        # wavfile.write(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i), 16000, intervals[i])
+        # 1. 非静音片段的右端点 小于 取出的语音流长度[这里往前取一点，]，则正常识别, 1*4096表示0.256s的数据
+        if intervals[i][1] < queue_front:
+            save_wave(
+                numpy.array(
+                    buffer_temp[intervals[i][0]: intervals[i][1]],
+                    dtype=numpy.int16
+                ),
+                UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav'
+            )
+
+            files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+            sr_result = requests.post(srUrl, files=files)
+            files['file'].close()
+            
+            files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+            asr_result = requests.post(asrUrl, files=files)
+            files['file'].close()
+
+            results[i] = {
+                "sr": sr_result.json(),
+                "asr": asr_result.json()
+            }
+
+            value['vad_frames'] = 4096 * 12
+            # vad_frame_length = 4096 * 12
+        # 2. 非静音片段的右端点 等于 取出的语音长度，则不进行识别，与后续语音流拼接后识别
+        if intervals[i][1] >= queue_front:
+            queue_front = intervals[i][0]
+            value['vad_frames'] = 4096 * 12 + intervals[i][1] - intervals[i][0]
+            # vad_frame_length = 4096 * 12 + intervals[i][1] - intervals[i][0]
+            break
+
+    # 清除队列中已经识别完成的语音流，将队列的头部指向queue_front
+    print('the queue_front is ' + str(queue_front))
+    audio_stream_buffer[key]['stream'].redirect_queue(queue_front)
+    return results
+
+
 @socketIO.on('send_result', namespace='/test')
 def sending_result(data):
-    time.sleep(5)
     print("收到请求！")
     key, value = data['remote_addr'], audio_stream_buffer[data['remote_addr']]
     # 记录首次静音检测片段的大小
-    vad_frame_length = 4096 * 12
-    while audio_stream_buffer[key]['stream'].queue_length() != 0:
-        # 对大约3s的数据做静音检测
-        if value['stream'].queue_length() >= vad_frame_length:
-            # 获得队列中前3s的数据，静音检测2s
-            buffer_temp, queue_front = value['stream'].get_queue(vad_frame_length), vad_frame_length - 4096 * 2
-            # 去掉静音片段，并将1365 × 36之前的语音发送做语音识别和声纹识别
-            intervals = vad_with_webrtc(
-                numpy.array(
-                    buffer_temp, dtype=numpy.int16
-                ),
-                16000
-            )
-            interval_file_name = str(int(round(time.time() * 1000)))
-            print(interval_file_name)
-            print(intervals)
-            save_wave(
-                numpy.array(buffer_temp, dtype=numpy.int16),
-                UPLOAD_PATH + '/temp/' + interval_file_name + '.wav'
-            ),
-            for i in range(len(intervals)):
-                # 此时需要分别请求 语音识别 和 声纹识别 两个接口（位于其它两个不同的服务器上），并将数据返回
-                # 将语音保存temp文件中
-                # wavfile.write(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i), 16000, intervals[i])
-                # 1. 非静音片段的右端点 小于 取出的语音流长度[这里往前取一点，]，则正常识别, 1*4096表示0.256s的数据
-                if intervals[i][1] < queue_front:
-                    save_wave(
-                        numpy.array(
-                            buffer_temp[intervals[i][0]: intervals[i][1]],
-                            dtype=numpy.int16
-                        ),
-                        UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav'
-                    )
-
-                    # files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
-                    # sr_result = requests.post(srUrl, files=files)
-                    # files['file'].close()
-                    #
-                    # files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
-                    # asr_result = requests.post(asrUrl, files=files)
-                    # files['file'].close()
-                    # TODO asr_result.json(), sr.result.json()
-                    # results[i] = {
-                    #     "sr": {'result': 'unknown'},
-                    #     "asr": {'result': '*******'}
-                    # }
-                    emit('asr_sr_result', {
-                        'code': 200,
-                        "sr": {'result': 'unknown'},
-                        "asr": {'result': '*******'}
-                    })
-                vad_frame_length = 4096 * 12
-
-                # 2. 非静音片段的右端点 等于 取出的语音长度，则不进行识别，与后续语音流拼接后识别
-                if intervals[i][1] >= queue_front:
-                    queue_front = intervals[i][0]
-                    vad_frame_length = 4096 * 12 + intervals[i][1] - intervals[i][0]
-                    break
-
-            # 清除队列中已经识别完成的语音流，将队列的头部指向queue_front
-            print('the queue_front is ' + str(queue_front))
-            audio_stream_buffer[key]['stream'].redirect_queue(queue_front)
-        else:
-            # # 剩余的不足3s的语音直接舍弃
-            # break
-            continue
-    emit('data_response', {
+    if value['stream'].queue_length() >= value['vad_frames']:
+        results = do_asr_sr_recognition(data['remote_addr'], audio_stream_buffer[data['remote_addr']], value['vad_frames'])
+        print(results)
+        for key, result_value in results.items():
+            emit('asr_sr_result', {
+                'code': 200,
+                "sr": result_value['sr'],
+                "asr": result_value['asr']
+            })
+    emit('asr_sr_result', {
         'code': 200,
-        'msg': '语音流识别完毕！'
+        "sr": "***",
+        "asr": "***"
     })
+
+    # while audio_stream_buffer[key]['stream'].queue_length() != 0 and await_time <= 2000:
+    #     # print("继续检测......" + str(audio_stream_buffer[key]['stream'].queue_length()))
+    #     # 对大约3s的数据做静音检测
+    #     if value['stream'].queue_length() >= vad_frame_length:
+    #         # 获得队列中前3s的数据，静音检测2s
+    #         buffer_temp, queue_front = value['stream'].get_queue(vad_frame_length), vad_frame_length - 4096 * 2
+    #         # 去掉静音片段，并将1365 × 36之前的语音发送做语音识别和声纹识别
+    #         intervals = vad_with_webrtc(
+    #             numpy.array(
+    #                 buffer_temp, dtype=numpy.int16
+    #             ),
+    #             16000
+    #         )
+    #         interval_file_name = str(int(round(time.time() * 1000)))
+    #         print(interval_file_name)
+    #         save_wave(
+    #             numpy.array(buffer_temp, dtype=numpy.int16),
+    #             UPLOAD_PATH + '/temp/' + interval_file_name + '.wav'
+    #         ),
+    #         for i in range(len(intervals)):
+    #             # 此时需要分别请求 语音识别 和 声纹识别 两个接口（位于其它两个不同的服务器上），并将数据返回
+    #             # 将语音保存temp文件中
+    #             # wavfile.write(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i), 16000, intervals[i])
+    #             # 1. 非静音片段的右端点 小于 取出的语音流长度[这里往前取一点，]，则正常识别, 1*4096表示0.256s的数据
+    #             if intervals[i][1] < queue_front:
+    #                 save_wave(
+    #                     numpy.array(
+    #                         buffer_temp[intervals[i][0]: intervals[i][1]],
+    #                         dtype=numpy.int16
+    #                     ),
+    #                     UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav'
+    #                 )
+
+    #                 files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+    #                 sr_result = requests.post(srUrl, files=files)
+    #                 files['file'].close()
+                    
+    #                 files = {'file': open(UPLOAD_PATH + '/temp/' + interval_file_name + '_' + str(i) + '.wav', 'rb')}
+    #                 asr_result = requests.post(asrUrl, files=files)
+    #                 files['file'].close()
+    #                 # TODO asr_result.json(), sr.result.json()
+    #                 emit('asr_sr_result', {
+    #                     'code': 200,
+    #                     "sr": sr_result.json(),
+    #                     "asr": asr_result.json()
+    #                 })
+    #             vad_frame_length = 4096 * 12
+
+    #             # 2. 非静音片段的右端点 等于 取出的语音长度，则不进行识别，与后续语音流拼接后识别
+    #             if intervals[i][1] >= queue_front:
+    #                 queue_front = intervals[i][0]
+    #                 vad_frame_length = 4096 * 12 + intervals[i][1] - intervals[i][0]
+    #                 break
+
+    #         # 清除队列中已经识别完成的语音流，将队列的头部指向queue_front
+    #         print('the queue_front is ' + str(queue_front))
+    #         audio_stream_buffer[key]['stream'].redirect_queue(queue_front)
+    #         await_time = 0
+    #     else:
+    #         # # 剩余的不足3s的语音直接舍弃
+    #         # break
+    #         # await_time = await_time + 1
+    #         continue
+    # emit('data_response', {
+    #     'code': 200,
+    #     'msg': '语音流识别完毕！'
+    # })
 
 
 @socketIO.on('stop_recording', namespace='/test')
@@ -232,6 +317,21 @@ def stop_recording(data):
             'msg': '结束录音之前，请先开始录音！'
         })
     else:
+        results = do_asr_sr_recognition(
+            data['remote_addr'], 
+            audio_stream_buffer[data['remote_addr']], 
+            audio_stream_buffer[data['remote_addr']]['vad_frames']
+        )
+        for key, result_value in results.items():
+            emit('asr_sr_result', {
+                'code': 200,
+                "sr": result_value['sr'],
+                "asr": result_value['asr']
+            })
+        emit('data_response', {
+            'code': 200,
+            'msg': '语音流识别完毕！'
+        })
         while audio_stream_buffer[data['remote_addr']]['stream'].queue_length() != 0:
             audio_stream_buffer[data['remote_addr']]['stream'].dequeue()
         audio_stream_buffer.pop(data['remote_addr'])
