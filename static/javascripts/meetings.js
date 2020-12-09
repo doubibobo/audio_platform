@@ -126,7 +126,11 @@ $(document).ready(function() {
             window.mediaNode.disconnect();
             window.jsNode.disconnect();
             console.log(audioBufferQueue);
-            socket.close()
+
+            socket.emit('stop_recording', {
+                'remote_addr': location.host
+            })
+            // socket.close()
         }
     )
 
@@ -194,8 +198,11 @@ $(document).ready(function() {
     });
 
     socket.on('asr_sr_result', function(msg, cb) {
-        document.getElementById('meeting-asr-sr').innerHTML
+        if (msg.code == 200) {
+            document.getElementById('meeting-asr-sr').innerHTML 
             = document.getElementById('meeting-asr-sr').innerHTML + '\r\n code # ' + msg.code + ' ' + msg.sr.result + ': ' + msg.asr.result;
+        }
+        // 接到一个处理结果就触发一次请求
         socket.emit('send_result', {
             'remote_addr': location.host
         })
@@ -234,13 +241,13 @@ $(document).ready(function() {
                         'vad_frames': JSON.stringify(vad_frames),
                         'remote_addr': location.host
                     })
-                    if (!window.flag) {
+                    if (window.flag) {
                         // 在上传至少一个缓冲区时请求结果
                         socket.emit('send_result', {
                             'remote_addr': location.host
                         })
-                        window.flag=true;
                     }
+                    window.flag=true;
                 }
                 return target[name];
             } else {

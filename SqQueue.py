@@ -32,8 +32,11 @@ class SqQueue(object):
 
     # 删除元素到特定的节点，这里已经确保position在[front, end]区间内了
     def redirect_queue(self, position):
-        for i in range(position):
-            self.dequeue()
+        # for i in range(position):
+        # while position != self.front:
+            # self.dequeue()
+        self.front = (self.front + position) % self.maxsize
+        print("数据对齐成功~")
 
     # 获得队列中的元素，但是不删除
     def get_queue(self, length):
