@@ -148,32 +148,6 @@ def save_as_wav(wave_data, dest_file):
     f.close()
 
 
-@app.route('/')
-def index():
-    all_mp3_files1 = []
-    all_mp3_files2 = []
-    all_mp3_files3 = []
-    all_mp3_files4 = []
-    del_file(TEMP_FOLDER)
-    for filename in os.listdir(UPLOAD_FOLDER + '/asr'):
-        if is_audio_format(filename):
-            all_mp3_files1.append(filename)
-    for filename in os.listdir(UPLOAD_FOLDER + '/ser'):
-        if is_audio_format(filename):
-            all_mp3_files2.append(filename)
-    for filename in os.listdir(UPLOAD_FOLDER + '/sed'):
-        if is_audio_format(filename):
-            all_mp3_files3.append(filename)
-    for filename in os.listdir(UPLOAD_FOLDER + '/sr'):
-        if is_audio_format(filename):
-            all_mp3_files4.append(filename)
-    all_mp3_files1.sort()
-    all_mp3_files2.sort()
-    all_mp3_files3.sort()
-    all_mp3_files4.sort()
-    return render_template('index.html', **locals())
-
-
 @app.route('/getAudios', methods=["POST"])
 def get_audios():
     data = request.get_data()
@@ -532,7 +506,10 @@ def opencv_html():
         return render_template("opencv.html")
 
 
-@app.route('/new')
+"""
+替换主页内容，完成主页替代
+"""
+@app.route('/')
 def new():
     return render_template("new.html")
 
